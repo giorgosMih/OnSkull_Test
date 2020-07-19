@@ -12,8 +12,8 @@ public class BotLogic : MonoBehaviour
     public BotType type;
     public BotType enemyType;
 
-    public float rotateMinSpeed = 10f;
-    public float rotateMaxSpeed = 20f;
+    public float rotateMinSpeed = 70f;
+    public float rotateMaxSpeed = 90f;
     public float radius = 20f;
 
     public int maxHealth = 3;
@@ -32,9 +32,12 @@ public class BotLogic : MonoBehaviour
 
     private float nextAttack = 0f;
 
+    private AudioSource audio;
+
     // Start is called before the first frame update
     void Start()
     {
+        audio = gameObject.GetComponent<AudioSource>();
         center = planet.transform.position;
         rotateSpeed = UnityEngine.Random.Range(rotateMinSpeed, rotateMaxSpeed);
 
@@ -64,7 +67,9 @@ public class BotLogic : MonoBehaviour
     {
         if(health == 0)
         {
-            Destroy(this.gameObject);
+            //StartCoroutine(ClearObject(1f));
+            gameObject.SetActive(false);
+            Invoke("ClearObject", 1f);
             return;
         }
 
@@ -101,15 +106,16 @@ public class BotLogic : MonoBehaviour
             return;
         }
 
-        angle += rotateSpeed * Time.deltaTime;
-        angle = Mathf.Clamp(angle, 0f, 1f);
+        angle = rotateSpeed * Time.deltaTime;
+        //angle = Mathf.Clamp(angle, 0f, 2f);
+        //Debug.Log(angle);
 
         transform.RotateAround(center, axis, angle);
     }
 
     void Chase()
     {
-        if(currentTarget == null)
+        if(!currentTarget.activeSelf)
         {
             state = BotState.patrol;
             return;
@@ -127,6 +133,8 @@ public class BotLogic : MonoBehaviour
 
         angle += rotateSpeed * Time.deltaTime;
         angle = Mathf.Clamp(angle, 0f, 1f);
+        //Debug.Log(currentTarget);
+        //Debug.Log(currentTarget.transform);
         Vector3 newAngle = Quaternion.LookRotation(axis, currentTarget.transform.position).eulerAngles;
 
         transform.RotateAround(center, newAngle, angle);
@@ -134,7 +142,7 @@ public class BotLogic : MonoBehaviour
 
     void Attack()
     {
-        if (currentTarget == null)
+        if (!currentTarget.activeSelf)
         {
             state = BotState.patrol;
             return;
@@ -144,8 +152,34 @@ public class BotLogic : MonoBehaviour
         {
             nextAttack = Time.time + attackInterval;
             currentTarget.SendMessage("ApplyDamage", damage);
-            Debug.Log(this.gameObject.name + " attacked");
+
+            LineRenderer lineRenderer = gameObject.AddComponent<LineRenderer>();
+            lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+            lineRenderer.widthMultiplier = 0.2f;
+            lineRenderer.SetColors(Color.cyan, Color.blue);
+            lineRenderer.SetPositions(new Vector3[] { transform.position, currentTarget.transform.position });
+
+            audio.Play();
+
+            StartCoroutine(RemoveLines(lineRenderer, 0.2f));
+            //lineRenderer.positionCount = lengthOfLineRenderer;
+
+            //Vector3 forward = transform.forward * 10;
+            
+            //Debug.DrawRay(transform.position, forward, Color.blue);
         }
+    }
+
+    IEnumerator RemoveLines(LineRenderer line, float delayTime)
+    {
+        yield return new WaitForSeconds(delayTime);
+
+        Destroy(line);
+    }
+
+    void ClearObject()
+    {
+        Destroy(gameObject);
     }
 
     bool FindClosestEnemy()
