@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.Threading;
 using UnityEngine;
 
 public class BotLogic : MonoBehaviour
@@ -9,41 +7,41 @@ public class BotLogic : MonoBehaviour
     public enum BotType { GreenSpaceship, RedSpaceship };
     public enum BotState { patrol, chase, attack };
 
-    public BotType type;
     public BotType enemyType;
 
     public float rotateMinSpeed = 70f;
     public float rotateMaxSpeed = 90f;
-    public float radius = 20f;
 
     public int maxHealth = 3;
     public int damage = 1;
     public float attackInterval = 1.0f;
 
-    private GameObject planet;
-    private Vector3 center;
-    private float angle;
-    private float rotateSpeed;
-    private int health;
-    private Vector3 axis;
+    private GameObject planet;//the planet GameObject that the spaceship rotates around
+    private Vector3 center;//the center (position) of the planet
+    private float angle;//rotation angle
+    private float rotateSpeed;//rotation speed (around the planet)
+    private int health;//current spaceship's health
+    private Vector3 axis;//rotation axis around the planet
 
-    public BotState state = BotState.patrol;
-    private GameObject currentTarget = null;
+    private string enemyTag;//enemy's tag name
 
-    private float nextAttack = 0f;
+    private BotState state = BotState.patrol;//bot's current state
+    private GameObject currentTarget = null;//bot's current enemy target
 
-    private AudioSource audio;
+    private float nextAttack = 0f;//time for next attack
 
-    // Start is called before the first frame update
+    private AudioSource audioSource;//bot's audio source for attack sounds
+
     void Start()
     {
-        audio = gameObject.GetComponent<AudioSource>();
-        center = planet.transform.position;
-        rotateSpeed = UnityEngine.Random.Range(rotateMinSpeed, rotateMaxSpeed);
+        enemyTag = Enum.GetName(typeof(BotType), enemyType);
+        audioSource = gameObject.GetComponent<AudioSource>();
+        center = planet.transform.position;//where to rotate around
+        rotateSpeed = UnityEngine.Random.Range(rotateMinSpeed, rotateMaxSpeed);//calculate random spaceship's rotation speed (around planet)
 
-        health = maxHealth;
-        angle += 10f * Time.deltaTime;
+        health = maxHealth;//set current health to max health
 
+        //pick a random axis to rotate around the planet
         int randAxis = UnityEngine.Random.Range(0, 4);
         switch (randAxis)
         {
@@ -62,27 +60,31 @@ public class BotLogic : MonoBehaviour
         }
     }
 
-    // Update is called once per frame
     void Update()
     {
-        if(health == 0)
+        if(Time.timeScale == 0f)
         {
-            //StartCoroutine(ClearObject(1f));
-            gameObject.SetActive(false);
-            Invoke("ClearObject", 1f);
             return;
         }
 
-        //check if current bot is dead
+        //check if spaceship is dead
+        if(health == 0)
+        {
+            gameObject.SetActive(false);//deactivate object
+            Invoke("ClearObject", 1f);//Destroy it after 1s (for other bots to clean up this object as their target)
+            return;
+        }
+
+        //check if current target bot is dead
         if(currentTarget != null)
         {
-            BotLogic bt = currentTarget.GetComponent(typeof(BotLogic)) as BotLogic;
-            if(bt == null)
+            if(!currentTarget.activeSelf)
             {
                 currentTarget = null;
             }
         }
 
+        //decide next action, based on state
         switch(state)
         {
             case BotState.patrol:
@@ -98,98 +100,131 @@ public class BotLogic : MonoBehaviour
         }
     }
 
+    /**
+     * Patrol Action. During this state, the bot simply rotates
+     * around the target planet, in its random rotation speed
+     * and random axis.
+     */
     void Patrol()
     {
+        //check if there are any enemy spaceships
         if(FindClosestEnemy())
         {
-            state = BotState.chase;
+            state = BotState.chase;//go to chase state, if there are enemies
             return;
         }
 
-        angle = rotateSpeed * Time.deltaTime;
-        //angle = Mathf.Clamp(angle, 0f, 2f);
-        //Debug.Log(angle);
+        angle = rotateSpeed * Time.deltaTime;//calculate movement angle
 
-        transform.RotateAround(center, axis, angle);
+        transform.RotateAround(center, axis, angle);//rotate around planet
     }
 
+    /**
+     * Chase Action. During this state, the bot chases the closest
+     * enemy spaceship. It keeps rotating around the planet while
+     * doing the chase.
+     */
     void Chase()
     {
-        if(!currentTarget.activeSelf)
+        //if target enemy is dead (or not exists), goto patrol state
+        if(currentTarget == null)
         {
             state = BotState.patrol;
             return;
         }
 
+        //if target is in attack range, goto attack state
         if (CheckInAttackRange())
         {
             state = BotState.attack;
         }
+        //else find the closest enemy
         else
         {
             state = BotState.chase;
             FindClosestEnemy();
         }
 
-        angle += rotateSpeed * Time.deltaTime;
-        angle = Mathf.Clamp(angle, 0f, 1f);
-        //Debug.Log(currentTarget);
-        //Debug.Log(currentTarget.transform);
-        Vector3 newAngle = Quaternion.LookRotation(axis, currentTarget.transform.position).eulerAngles;
+        angle += rotateSpeed * Time.deltaTime;//calculate attacking rotation speed/angle
+        angle = Mathf.Clamp(angle, 0f, 1f);//clamp the value (prevent too high speed)
 
-        transform.RotateAround(center, newAngle, angle);
+        if (Vector3.Distance(currentTarget.transform.position, transform.position) > 3f)//check if to close to enemy, so to stop going towards him
+        {
+            //calculate new rotation axis, around the planet towards the target enemy
+            Vector3 newAxis = Quaternion.LookRotation(currentTarget.transform.position - transform.position, transform.up).eulerAngles;
+            transform.RotateAround(center, newAxis, angle);
+        }
+        else
+        {
+            transform.RotateAround(center, axis, angle);
+        }
     }
 
+    /**
+     * Attack Action. During this state the bot attacks its
+     * target enemy. The attack occurs every specified
+     * interval of seconds.
+     */
     void Attack()
     {
-        if (!currentTarget.activeSelf)
+        //if target enemy is dead (or not exists), goto patrol state
+        if (currentTarget == null)
         {
             state = BotState.patrol;
             return;
         }
 
+        //check for interval timer
         if(Time.time > nextAttack)
         {
-            nextAttack = Time.time + attackInterval;
-            currentTarget.SendMessage("ApplyDamage", damage);
+            nextAttack = Time.time + attackInterval;//calculate next attack time
+            currentTarget.SendMessage("ApplyDamage", damage);//send attack event message (to apply damage to enemy)
 
+            //draw laser beam (as line)
             LineRenderer lineRenderer = gameObject.AddComponent<LineRenderer>();
             lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
-            lineRenderer.widthMultiplier = 0.2f;
-            lineRenderer.SetColors(Color.cyan, Color.blue);
+            lineRenderer.widthMultiplier = 0.12f;
+            lineRenderer.startColor = Color.cyan;
+            lineRenderer.endColor = Color.blue;
             lineRenderer.SetPositions(new Vector3[] { transform.position, currentTarget.transform.position });
+            StartCoroutine(RemoveLine(lineRenderer, 0.2f));//destroy line renderer component (after 200ms)
 
-            audio.Play();
-
-            StartCoroutine(RemoveLines(lineRenderer, 0.2f));
-            //lineRenderer.positionCount = lengthOfLineRenderer;
-
-            //Vector3 forward = transform.forward * 10;
-            
-            //Debug.DrawRay(transform.position, forward, Color.blue);
+            //play laser fire sound
+            if (audioSource != null)
+            {
+                audioSource.Play();
+            }
         }
     }
 
-    IEnumerator RemoveLines(LineRenderer line, float delayTime)
+    /**
+     * Destroys the specified LineRenderer component
+     * after the specified time.
+     */
+    IEnumerator RemoveLine(LineRenderer line, float delayTime)
     {
         yield return new WaitForSeconds(delayTime);
-
         Destroy(line);
     }
 
+    //Destroys the current Spaceship GameObject
     void ClearObject()
     {
         Destroy(gameObject);
     }
 
+    /**
+     * Finds the closest (to the current GameObject) 
+     * enemy Spaceship. Returns true if any enemy was
+     * found or false otherwise.
+     */
     bool FindClosestEnemy()
     {
-        String enemyTag = System.Enum.GetName(typeof(BotType), enemyType);
-        GameObject[] enemies = GameObject.FindGameObjectsWithTag(enemyTag);
+        GameObject[] enemies = GameObject.FindGameObjectsWithTag(enemyTag);//get all enemy GameObject's
 
-        Vector3 currentPosition = transform.position;
-        float distance = Mathf.Infinity;
-        currentTarget = null;
+        Vector3 currentPosition = transform.position;//current bot's position
+        float distance = Mathf.Infinity;//distance between current bot and closest enemy bot
+        currentTarget = null;//current enemy bot
         foreach (GameObject enemy in enemies)
         {
             Vector3 diff = enemy.transform.position - currentPosition;
@@ -201,15 +236,23 @@ public class BotLogic : MonoBehaviour
             }
         }
 
-        return currentTarget != null;
+        return currentTarget != null;//return if any enemy found
     }
 
+    /**
+     * Finds if the current bot is in range to attack the
+     * target enemy bot (if it exists). Range is 5.0f units.
+     */
     bool CheckInAttackRange()
     {
+        if(currentTarget == null)
+        {
+            return false;
+        }
+
         RaycastHit hitInfo;
         if(Physics.Linecast(transform.position, currentTarget.transform.position, out hitInfo))
         {
-            String enemyTag = System.Enum.GetName(typeof(BotType), enemyType);
             GameObject theObject = hitInfo.collider.gameObject;
             
             if(theObject.CompareTag(enemyTag) && hitInfo.distance <= 5f)
@@ -221,11 +264,18 @@ public class BotLogic : MonoBehaviour
         return false;
     }
 
-    public void setPlanet(GameObject p)
+    /**
+     * Sets the target planet around which the current bot
+     * rotates.
+     */
+    public void SetPlanet(GameObject p)
     {
         planet = p;
     }
 
+    /**
+     * Applies the specified damage to the current bot.
+     */
     public void ApplyDamage(int dmg)
     {
         if (dmg > 0)

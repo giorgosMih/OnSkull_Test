@@ -14,7 +14,6 @@ GameObject:
   - component: {fileID: 8049884325750758118}
   - component: {fileID: -5921139476886835691}
   - component: {fileID: 4757679599384852597}
-  - component: {fileID: 8783563027193915847}
   m_Layer: 0
   m_Name: GreenSpaceship
   m_TagString: GreenSpaceship
@@ -108,7 +107,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 93c1c34e522a02d498410497979342b7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  type: 0
   enemyType: 1
   rotateMinSpeed: 10
   rotateMaxSpeed: 20
@@ -127,7 +125,7 @@ AudioSource:
   m_Enabled: 1
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
-  m_audioClip: {fileID: 8300000, guid: 9c463b810f7abde408c514f98cade58d, type: 3}
+  m_audioClip: {fileID: 8300000, guid: 85baeb4cf6393de4e91938f586820a69, type: 3}
   m_PlayOnAwake: 0
   m_Volume: 1
   m_Pitch: 1
@@ -213,15 +211,3 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
---- !u!114 &8783563027193915847
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8049884325750758119}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: dfa0c21051ca70d42b7892429d5c0180, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
